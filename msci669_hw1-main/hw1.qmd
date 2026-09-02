@@ -1,7 +1,7 @@
 ---
-title: "ARA 669 - Assignment 1"
-author: "Your name here"
-date: "today's date here"
+title: "assignment1_hancock"
+author: "Grace Hancock"
+date: "9.2.2026"
 output: html_document
 ---
 
