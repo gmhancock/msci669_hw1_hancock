@@ -1,0 +1,463 @@
+---
+title: "ARA 669 - Hancock Assignment 2"
+author: "Grace Hancock"
+date: "9/24/2026"
+output: html_document
+---
+
+## Overview
+
+The goal of this assignment is to apply the tools and approaches we've learned during lab to explore data from a study of periwinkle snail (*Littoraria irrorata*) association with big cordgrass (*Spartina cynosuroides*) and smooth cordgrass (*Spartina alterniflora*) in a salt marsh in Taskinas Creek, a tributary of the York River. The dataset includes the following variables:
+
+obs: Observation number
+quad: Quadrat number
+plantType: SPAL = *Spartina alterniflora*; SPCY = *Spartina cynosuroides*
+liveStems: Number of live stems
+deadStems: Number of dead stems
+burrows: Fiddler crab burrows greater than one centimeter
+mussels: Ribbed mussels (*Guekensia demissa*)
+snails: Periwinkle snails (*Littoraria irrorata*)
+snailDensity: Snail Density
+notes: any notes about the observation
+
+Please submit this assignment via GitHub by 24 September.  
+
+## Getting started
+
+**Use the code chunk below to load packages and the data. \[0.5 pt\]**
+
+```{r setup}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+library(tidyverse)
+library(readr)
+library(car)
+data<-read_csv("Failon_Plant_Stem_Densities_and_Invertebrate_Survey.csv")
+
+```
+
+## Data exploration
+
+**Explore the data visually using ggplot2. \[0.5 pt\]**
+
+```{r plotting}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+lattice::splom(data)
+
+
+# the package GGally is similar but using ggplot2
+
+GGally::ggpairs(data)
+#categorical
+
+ggplot(data, aes(x=plantType, y=snails, fill=plantType)) + # fill=name allow to automatically dedicate a color for each group
+   geom_violin(trim = FALSE)+
+  geom_boxplot(width=0.1, color="black", alpha=0.2) +
+   geom_jitter(width = 0.15, alpha = 0.7)+
+ theme_classic()
+
+ggplot(data, aes(x=plantType, y=liveStems, fill=plantType)) + # fill=name allow to automatically dedicate a color for each group
+   geom_violin(trim = FALSE)+
+  geom_boxplot(width=0.1, color="black", alpha=0.2) +
+   geom_jitter(width = 0.15, alpha = 0.7)+
+ theme_classic()
+
+ggplot(data, aes(x=plantType, y=deadStems, fill=plantType)) + # fill=name allow to automatically dedicate a color for each group
+   geom_violin(trim = FALSE)+
+  geom_boxplot(width=0.1, color="black", alpha=0.2) +
+   geom_jitter(width = 0.15, alpha = 0.7)+
+ theme_classic()
+
+#looks like species is impacting live and dead leaves, but not really snails
+
+
+
+ggplot(data = data, mapping = aes(x=liveStems, y=deadStems))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+ggplot(data = data, mapping = aes(x=liveStems, y=deadStems, color=plantType))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+ggplot(data = data, mapping = aes(x=liveStems, y=snails))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+ggplot(data = data, mapping = aes(x=liveStems, y=snails, color=plantType))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+
+ggplot(data = data, mapping = aes(x=burrows, y=snails, color=plantType))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+
+
+#silly stuff
+
+ggplot(data = data, mapping = aes(x=snails, y=snailDensity, color=plantType))+ #lol no collinearity here I swear
+  geom_point()+
+  geom_smooth(method = lm)+
+  theme_classic()
+
+```
+
+**Describe your approach. What choices did you make in deciding which variables to use, plot types, etc., and why? \[1 pt\]**
+
+From the data I saw that there are two typed of plants represented, so the first thing I did was some initial categorical comparisons using violin plots with inlaid box plots. This helped me decide what sort of variables should be divided by species (seems like snails don't care, but live vs dead leaves change a lot). Based on this information, I decided to look at livestems impact on dead stems (maybe quadrats with of either type are just quadrats with more stems over all, or maybe if there are more dead stems there are less live stems) after an initial pass, it looked like the more live stems, the less dead stems. Because the categorical approach showed differences in both live and dead stem counts based on what plant type was identifyed, I grouped this comparison by species and it switched the trend to positive. (Possible the negative effect was due to one plant type in general having more live to dead stems vs the other, while the actual trend within the species might be positive.)
+
+Over all it seems like plant type and live stems maybe be correlated or have an interaction.
+
+## Research question
+
+**Based on the data description above and your visualizations, formulate research questions and testable hypotheses that could be answered by applying linear models to the data provided. \[1 pt\]**
+
+Are snails are found in higher densities in quadrants with higher amounts of live stems?
+
+H0 live stem count in quadrants has no effect on the density of snails
+
+H1 there is a positive relationship between live stem count and snail density
+
+
+## Analysis
+
+**Develop a set of models (3+) that reflect the hypotheses described above. \[1 pt\]**
+
+```{r models}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+m1<-
+  lm(
+    snails~liveStems + plantType,
+    data=data
+  )
+
+m2<-
+  lm(
+    snails~liveStems*plantType,
+    data=data
+  )
+
+m3<-
+  lm(
+    snails~deadStems+plantType,
+    data=data
+)
+
+m4<-
+  lm(
+    snails~deadStems*plantType,
+    data=data
+)
+
+m5<-
+  lm(
+    snails~liveStems*deadStems*plantType,
+    data=data
+  )
+```
+
+This set of hypotheses is not acting how I'd like them to so I am pivoting:
+
+Are there more dead stems in quadrants with higher amounts of live stems?
+
+H0 live stem count in quadrants has no effect on the amount of dead stems
+
+H1 there is a positive relationship between live stem count and dead stem count
+
+Additionally:
+does the trend vary based on the plant type present?
+
+
+```{r}
+
+m6<-
+  lm(
+    deadStems~liveStems*plantType,
+    data=data
+  )
+
+m7<-
+  lm(
+    deadStems~liveStems+plantType,
+    data=data
+  )
+
+
+m8<-
+  lm(
+    deadStems~liveStems+plantType+snails+burrows+mussels,
+    data=data
+  )
+
+m9<-
+  lm(
+    deadStems~liveStems*plantType*burrows,
+    data=data
+  )
+
+m10<-
+  lm(
+    deadStems~liveStems+plantType+burrows,
+    data=data
+  )
+
+m11<-
+  lm(
+    deadStems~liveStems*burrows,
+    data=data
+)
+
+m12<-
+  lm(
+    deadStems~plantType*burrows,
+    data=data
+)
+
+m13<-
+  lm(
+    deadStems~plantType+snails+burrows+mussels,
+    data=data
+)
+m14<-
+  lm(
+    deadStems~plantType,
+    data = data
+  )
+  
+```
+
+**Evaluate your models using an approach covered as part of this class. \[1 pt\]**
+
+
+```{r modelselection}
+#| message: false
+#| error: false
+
+AIC(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14) %>% 
+  arrange(AIC) %>% mutate(deltaAIC=AIC-min(AIC))
+  
+BIC(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14) %>% 
+  arrange(BIC)
+
+#7, 10, 6, 8, 9
+
+vif(m1)
+vif(m2)
+vif(m3)
+vif(m5)
+vif(m6)
+vif(m7)
+vif(m8)
+vif(m9)
+vif(m10)
+vif(m11)
+vif(m12)
+vif(m13)
+#vif(m14) no collinearity because its one variable lol
+
+# Paste your code in here!
+
+```
+VIF
+
+vif(m1) Y
+vif(m2) N
+vif(m3) Y
+vif(m5) N
+vif(m6) N
+vif(m7) Y
+vif(m8) Y
+vif(m9) N
+vif(m10) Y
+vif(m11) N
+vif(m12) Y
+vif(m13) Y
+
+
+m7 looks solid
+
+then maybe 10 or 12 or 13
+
+
+
+
+```{r}
+summary(m7) #deadStems~liveStems+plantType,
+summary(m10) #deadStems~liveStems+plantType+burrows
+summary(m12) #deadStems~plantType*burrows,
+summary(m14) #deadStems~plantType
+```
+Honestly, single explaining variable looks best with AIC and p values adjusted R2
+but I am going to do m 13 and 7 for fun and to figure out if I can interpret more complicated models
+
+m13<-
+  lm(
+    deadStems~plantType+snails+burrows+mussels,
+    data=data
+) 
+
+**Check your model diagnostics (i.e., are the model assumptions met) using an approach covered as part of this class. \[1 pt\]**
+
+```{r diagnostics}
+#| message: false
+#| error: false
+library(performance)
+model_performance(m13)
+performance(m13)
+performance::check_model(m13)
+# Paste your code in here!
+
+
+
+summary(m13)
+summary (m7)
+
+```
+
+**Provide parameter estimates and SEs for the most supported model and plot the fitted model over observed data. \[2 pts\]**
+this is m13 the fun but worse model
+Coefficients:
+               Estimate Std. Error   
+(Intercept)    2.174162   0.729461   
+plantTypeSPCY  2.869680   0.492343   
+snails        -0.044855   0.048751    
+burrows        0.039394   0.126200      
+mussels       -0.003094   0.423255  
+
+
+This is the better fitting model (m7)
+Coefficients:
+              Estimate Std. Error    
+(Intercept)    0.06778    1.34304     
+liveStems      0.10186    0.07512    
+plantTypeSPCY  3.78803    0.86460 
+
+
+```{r}
+
+
+library(ggplot2)
+library(ggeffects)
+
+
+
+
+
+#this is me trying to use the format from lab
+newdat7<-
+  expand_grid(
+    plantType=c("SPAL", "SPCY"),
+    liveStems = seq(0,30, by =1))
+
+newdat7%>%
+  mutate(
+    pred_deadStems=
+      predict(m7,newdata=newdat7)) %>%
+  ggplot(
+    aes(x=liveStems, y=pred_deadStems, col=plantType))+
+  geom_line()
+geom_point(
+    data = data,
+    aes(x = liveStems, y = deadStems, col = plantType),
+    inherit.aes = FALSE)
+
+#this is me using AI
+
+data$predicted <- predict(m7)
+
+#deadStems~liveStems+plantType,
+ggplot(data, aes(x = liveStems, color = plantType)) +
+  geom_point(aes(y = deadStems), alpha = 0.6) +  
+  geom_line(aes(y = predicted), linewidth = 1) +  
+  labs(
+    title = "deadStems~liveStems+plantType,"
+  ) +
+  theme_classic()
+
+
+
+#this is also me using AI, because I didn't know how to add the last variable.
+
+# ggeffect
+predictions <- predict_response(m13, terms = c("snails", "plantType"))
+
+plot(predictions, show_data = TRUE) +
+  labs(
+    title = "deadStems~plantType+snails+burrows+mussels"
+  ) +
+  theme_classic()
+
+```
+
+
+## Conclusions
+
+**Provide summary statements about the quality of your analysis, including any potential limitations or caveats. \[1 pt\]**
+
+I do not think that this was the best way to represent the data. For as far as we got (lm function) I think the simplest models ended up being the best. My main reason for choosing the more complicated one in addition to m7 was because I wanted to see if I could figure out how to present/plot it. I think there are limitations around me not knowing methodological details, but mostly from me not knowing how to do anything other than lm. I am also not sure how to allow for the species to have two separate slopes, would that be if I multiplied in the model structure to allow for interactive effects? When I did that it made the model perform worse with the measures I looked at, it seemed like adding interactions didn't pay off for this specific dataset.
+
+
+
+
+
+## AI statement
+
+*If you used AI for this assignment, please describe your use, including:*
+I did use AI for the plotting of the last two models because I wasn't able to get the code from class to work well with my models. Honestly the AI code did not do much better haha I would love it if we could go over the prediction part again!
+*1.  What tool or service did you use?*
+Chatgpt
+*2.  What was the specific purpose or use?*
+generating figures for models with more than one predictor
+*3.  How did this use enhance your understanding of the topic/code?*
+Other than explaining that the predicted line had all the modeled parameters (even though the y axis is set to only one) it did not help much, I think the two bodies of code (the example from the notes and then the two AI versions) are so different I wasn't able to figure out what exactly it was doing. I tried "chatting" a little bit but I think it would probably benefit me more if I worked on figuring out the method from lab with you guys instead. 
+## Final Project
+
+Each student will complete an independent project using a dataset from their own research whenever possible. Students who do not have an appropriate dataset will be provided with one. **If you do not have a dataset to use for this project, please reach out to Rob & Gina as soon as possible.**
+
+The project is intended to mirror the statistical component of a scientific research study and will require students to integrate concepts learned throughout the course. Project components include: 
+
+- formulation of a research question, objective, and/or testable hypotheses;
+- description of the study design and data with justification of design adequacy;
+- exploratory data analysis;
+- selection and justification of an appropriate modeling approach;
+- model fitting, comparison, selection, and validation;
+- interpretation of results in the context of the research question;
+- preparation of publication-quality figures and tables;
+- a written report in the style of a short scientific paper (approximately 4-6 pages); and
+- a 3-minute lightening talk summarizing the study, analytical approach, results, and conclusions.
+
+Projects will be evaluated on the quality of the scientific question, appropriateness of the statistical methodology, rigor of the analysis, interpretation of results, clarity of written and oral communication, and reproducibility of the analytical workflow.
+
+To support you on this analytical journey, this project has been divided into four steps, which will all contribute to your final project grade (worth 50% of your total grade). 
+
+1. Project proposal, including research question and description of dataset
+2. Exploratory data analysis and proposed analytical approach
+3. Preliminary model fits and diagnostics
+4. Final paper and presentation
+
+## Project proposal
+
+Emailed it to you!
+**Formulate 1-2 research questions, objectives, and/or testable hypotheses of interest. Provide sufficient detail for someone not familiar with your work to understand the goal(s) of your project. \[2 pts\]**
+
+
+
+**Describe the study design and data, including justification of design adequacy to address the research question, objectives, and/or testable hypotheses described above. Provide sufficient detail to evaluate your data in the context of your questions of interest. \[3 pts\]**
+
+
+
