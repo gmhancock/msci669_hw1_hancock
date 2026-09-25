@@ -1,0 +1,68 @@
+---
+title: "assignment1_hancock"
+author: "Grace Hancock"
+date: "9.2.2026"
+output: html_document
+---
+
+## Assignment
+
+This first assignment is designed to ease you into the course, and to introduce GitHub and Quarto to those of you not familiar with the programs. It's also an opportunity for me to gauge a little more formally where everyone is in terms of coding styles and experiences. 
+
+Please submit this assignment via GitHub by Sept. 3 at 5 pm.
+
+## Getting started
+
+Use the code chunk below to load the tidyverse package \[0.5 pt\].
+
+```{r setup}
+#| message: false
+#| error: false
+library(tidyverse)
+```
+## Data exploration
+Several well-behaved datasets are preloaded into R and are frequently used to demonstrate statistical concepts. Use the function data() to retrieve a list available datasets and pick one to explore for this assignment.
+
+```{r explore}
+#| message: false
+#| error: false
+data("trees")
+glimpse(trees)
+
+```
+Describe the context of the dataset and the structure of the data themselves \[1 pt\].
+
+This data set describes the girth, height, and volume of a list of 31 trees. 
+
+## Plotting
+Explore the data visually using ggplot2 \[1 pt\].
+
+```{r plotting}
+#| message: false
+#| error: false
+ggplot(data = trees, mapping = aes(x=Girth, y=Height))+
+  geom_point()+
+  geom_smooth(method = lm)
+```
+Describe your approach. What choices did you make in deciding which variables to use, plot types, etc., and why? [1 pt].
+
+I chose two variables (girth=x height=y) because logically I guessed their would be a relationship between the two. To approach this assumption, I used a scatterplot to visually represent the relationship. From a visual inspection, It looked like it could be a positive linear relationship, so I threw an lm up there just for fun. 
+
+
+Read the perspectives article “Should we still teach or learn coding? A postgraduate student perspective on the use of large language models for coding in ecology & evolution” (Campbell et al. 2024). What part(s) of this article resonated with you, and why [1.5 pts]? 
+
+It did a really good job of articulating the concerns I have for my own use of AI as well as the usage of my peers. I feel as though I have to use it to keep up, but I know by implementing it this early in my career it is opening me up to a dependence and a lack of ability to quality control that could significantly impact my ability to produce accurate and high quality analysis of my own data down the line. Like the paper describes, without foundational coding knowledge, over reliance on AI can leave you incredibly vulnerable to missing errors or misrepresenting your data. I hope to get to a place where I can use it to advance my research while simultaneously knowing that I can check and understand each line of code that it might produce. I hope all my peers who are in this transition period with me will do the same!
+
+## AI statement
+
+Describe your use of AI in this assignment, including:
+
+1.  What tool or service did you use? 
+I used the ai blurb at the top of google search
+
+2.  What was the specific purpose or use? 
+I accidentally pressed "insert" and got stuck in overwrite mode and I forgot how to get out. The AI summary told me how to fix it. It was the first thing that came up and it worked so I didn't look further.
+
+3.  How did this use enhance your understanding of the topic/code? 
+Maybe I will remember to hit insert for next time! I mostly used the r for data science resource and since it was basic code I was able to do it independently. 
+
