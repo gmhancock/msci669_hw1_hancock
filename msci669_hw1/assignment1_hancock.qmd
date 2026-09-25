@@ -10,6 +10,7 @@ output: html_document
 This first assignment is designed to ease you into the course, and to introduce GitHub and Quarto to those of you not familiar with the programs. It's also an opportunity for me to gauge a little more formally where everyone is in terms of coding styles and experiences. 
 
 Please submit this assignment via GitHub by Sept. 3 at 5 pm.
+5/5. 
 
 ## Getting started
 
