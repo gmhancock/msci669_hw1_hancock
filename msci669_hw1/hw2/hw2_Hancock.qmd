@@ -21,6 +21,7 @@ snailDensity: Snail Density
 notes: any notes about the observation
 
 Please submit this assignment via GitHub by 24 September.  
+8/9
 
 ## Getting started
 
@@ -72,6 +73,8 @@ ggplot(data, aes(x=plantType, y=deadStems, fill=plantType)) + # fill=name allow 
   geom_boxplot(width=0.1, color="black", alpha=0.2) +
    geom_jitter(width = 0.15, alpha = 0.7)+
  theme_classic()
+
+# yay, I love violin plots!
 
 #looks like species is impacting live and dead leaves, but not really snails
 
@@ -254,6 +257,8 @@ AIC(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14) %>%
 BIC(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14) %>% 
   arrange(BIC)
 
+# You can't compare modesl with different response variables using AIC/BIC. In this case, you would separate your models into distinct sets of models for each of your different response variables (e.g., compare models that have deadStems as the response variable to determine which variables are important for predicting deadStems, and separately compare models that have a different response variable). Also as a reminder that you generally you should model count data with discrete distributions.
+
 #7, 10, 6, 8, 9
 
 vif(m1)
@@ -409,7 +414,7 @@ plot(predictions, show_data = TRUE) +
 
 **Provide summary statements about the quality of your analysis, including any potential limitations or caveats. \[1 pt\]**
 
-I do not think that this was the best way to represent the data. For as far as we got (lm function) I think the simplest models ended up being the best. My main reason for choosing the more complicated one in addition to m7 was because I wanted to see if I could figure out how to present/plot it. I think there are limitations around me not knowing methodological details, but mostly from me not knowing how to do anything other than lm. I am also not sure how to allow for the species to have two separate slopes, would that be if I multiplied in the model structure to allow for interactive effects? When I did that it made the model perform worse with the measures I looked at, it seemed like adding interactions didn't pay off for this specific dataset.
+I do not think that this was the best way to represent the data. For as far as we got (lm function) I think the simplest models ended up being the best. My main reason for choosing the more complicated one in addition to m7 was because I wanted to see if I could figure out how to present/plot it. I think there are limitations around me not knowing methodological details, but mostly from me not knowing how to do anything other than lm. I am also not sure how to allow for the species to have two separate slopes, would that be if I multiplied in the model structure to allow for interactive effects? When I did that it made the model perform worse with the measures I looked at, it seemed like adding interactions didn't pay off for this specific dataset. Note, we'll revisit plotting and predictions and we haven't covered marginal means, which is necessary when you have more than 2 variables. 
 
 
 
