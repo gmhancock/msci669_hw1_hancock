@@ -1,0 +1,372 @@
+---
+title: "ARA 669 - Exploratory data analysis and proposed analytical approach"
+author: "Grace Hancock"
+date: "today's date here"
+output: html_document
+---
+
+Brief Project description:
+
+This analysis is for a 2x2x2 factorial design experiment where I am testing the effects of Oxygen (high and low), Temperature (high and low), and duration of exposure (acute 5 days and prolonged 3 weeks) on a number of whole organism responses and tissue level changes. Because I have so many response variables, I have chosen two that will help build a frame work for the rest; CTmax (thermal tolerance) and RVM (relative ventricular mass)
+The CTmax values were measured twice on the same fish, while RVM is not repeated on individuals since it is a different end point. 
+Another difference between these two variables are the sample sizes. 
+Repeated measures (CTmax) were tested on 12 individuals per treatment (4 treatments of oxygen and temperature) and the same individuals were tested twice (acute and prolonged time point)
+
+Lethal measures were taken from 6 unique individuals for each treatment/duration combination with an additional time point of a one day exposure (turns into a 2X2X3, with 4 environmental conditions sampled 3 times=12 sampling events total). the added time level changes my analysis because the time between day 1, day 5, and week 3 are not equally distributed and I want to incorporate the actual duration of exposure into my analysis not just a comparison between two categories like I will for the first one.
+The RVM/lethal measures are further complicated by their relation to the "control" treatments at each time point. The lethal measures for the three stress exposure treatments (high temp, low oxygen, high temp + low oxygen) were sampled at n=6 at the three time points as described. Due to limitations in equipment and time, we had to stagger the days these lethal samples (and the whole organism measures) were taken, meaning all of the stress conditions were sampled with the same exposure durations, but on different dates. To account for this, we sampled the control treatment (which was never ramped, and remained at the pre experiment stable conditions for the whole time) at a higher frequency so that every stress treatment sample had a control replicate. This allows us to see if day sampled/over all time in captivity impacted our findings. 
+
+I have images that I will email you as I know this is convoluted, sorry for the mess!
+
+
+
+
+## Final Project
+
+Each student will complete an independent project using a dataset from their own research whenever possible. Students who do not have an appropriate dataset will be provided with one.
+
+The project is intended to mirror the statistical component of a scientific research study and will require students to integrate concepts learned throughout the course. Project components include: 
+
+- formulation of a research question, objective, and/or testable hypotheses;
+- description of the study design and data with justification of design adequacy;
+- exploratory data analysis;
+- selection and justification of an appropriate modeling approach;
+- model fitting, comparison, selection, and validation;
+- interpretation of results in the context of the research question;
+- preparation of publication-quality figures and tables;
+- a written report in the style of a short scientific paper (approximately 4-6 pages); and
+- a 3-minute lightening talk summarizing the study, analytical approach, results, and conclusions.
+
+Projects will be evaluated on the quality of the scientific question, appropriateness of the statistical methodology, rigor of the analysis, interpretation of results, clarity of written and oral communication, and reproducibility of the analytical workflow.
+
+To support you on this analytical journey, this project has been divided into four steps, which will all contribute to your final project grade (worth 50% of your total grade). 
+
+1. Project proposal, including research question and description of dataset
+2. Exploratory data analysis and proposed analytical approach
+3. Preliminary model fits and diagnostics
+4. Final paper and presentation
+
+## Exploratory data analysis and proposed analytical approach
+
+The goal of this component of the project is begin exploring your dataset and developing a plan for the analysis. 
+
+Please submit this assignment via GitHub by **12 October at 11:59pm**, including the raw data, .qmd, and .html files. Be sure that the entire file runs without errors before submitting. You can create a new folder in your homework repository or create a new repository specific to the final project, whichever you prefer. This exploratory analysis, preliminary model fits (part 3), and code used for the final paper and presentation will all be submitted via GitHub. 
+
+## Data exploration
+
+
+For this code: I started with the full code I had used over the summer but have tried to break it down/simplify it based on what we have learned and how I'd like to move forward with this analysis.
+
+**Use the code chunk below to load packages and the data.**
+
+```{r setup}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(car)
+library(DHARMa)
+library(performance)
+library(ggplot2)
+```
+
+
+**Based on your research questions, objectives, and/or testable hypotheses, develop data visualizations using ggplot2. Consider visualizations that show relationships, the distribution of the underlying data, etc. If you need inspiration, check out the [R Graph Gallery](https://r-graph-gallery.com/). For each visualization, describe your approach: what choices did you make in deciding which variables to use, plot types, etc., and why? \[2.5 pts\]**
+
+How does temperature, oxygen, and duration of exposure change the thermal tolerance (CTmax) when repeated tests on individuals are accounted for
+
+Cleaning the data (pulled directly from summer analysis which was made with AI)
+```{r}
+# Load the data
+ctmax_data <- read_csv("ctmax.croaker.csv",
+                       show_col_types = FALSE)
+
+# Rename the CTmax column and clean the treatment information
+ctmax_data <- ctmax_data %>%
+  rename(ctmax_temp = `ctmax temp`) %>%
+  mutate(
+    Treatment = dplyr::recode(Treatment,
+      "A" = "Combined",
+      "B" = "Low Oxygen",
+      "C" = "Control",
+      "D" = "High Temperature"
+    ),
+    Treatment = factor(Treatment),
+    tag = factor(toupper(tag)),
+    Tank = factor(Tank),
+    `Date tested` = as.Date(`Date tested`,
+                            format = "%m/%d/%Y")
+  )
+
+# Add temperature and oxygen levels
+ctmax_data <- ctmax_data %>%
+  mutate(
+    Temperature = ifelse(
+      Treatment %in% c("Control", "Low Oxygen"), 22, 28
+    ),
+    Oxygen = ifelse(
+      Treatment %in% c("Control", "High Temperature"),
+      100, 60
+    ),
+    Temperature = factor(Temperature),
+    Oxygen = factor(Oxygen)
+  )
+
+# Identify acute and prolonged sampling dates
+ctmax_data <- ctmax_data %>%
+  group_by(Treatment) %>%
+  mutate(
+    Time = case_when(
+      `Date tested` == min(`Date tested`) ~ "Acute",
+      `Date tested` == max(`Date tested`) ~ "Prolonged",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  ungroup() %>%
+  filter(!is.na(Time)) %>%
+  mutate(Time = factor(Time, levels = c("Acute", "Prolonged")))
+```
+
+Now new simple plots:
+
+Box plot:
+Comparing the distribution of CTmax at the two time points within each treatment
+```{r}
+ggplot(ctmax_data, aes(x=Time,
+               y=ctmax_temp)) +
+ geom_violin(trim = FALSE)+
+  geom_boxplot(width=0.1, color="black", alpha=0.2) +
+  geom_jitter(width=0.12, alpha=0.6)+
+  facet_wrap(~interaction(Temperature, Oxygen))+
+  labs(
+    x="treatment",
+    y="CTmax",
+  )+
+  theme_classic()
+```
+Factorial interaction plot (first time trying!)
+https://psyteachr.github.io/introdataviz/multi-part-plots.html
+shows me how the interactions I am interested in are occuring with parralel lines showing less interaction and interseting/nonparralel showing stronger interactions. The time facet shows how time interacts as well although I think this format would be more convincing in a 2x2 set up rather than 2x2x2
+```{r fig1}
+#| message: false
+#| error: false
+
+ggplot(ctmax_data, aes(x=Temperature, y=ctmax_temp,
+                       color=Oxygen, group=Oxygen))+
+  stat_summary(fun=mean,geom="line",
+               linewidth=0.8)+
+  stat_summary(fun = mean,geom="line",
+               linewidth=0.8)+
+  stat_summary(fun.data = mean_cl_normal,
+               geom="errorbar", width=0.1)+
+  facet_wrap(~Time)+
+  labs(
+    x="Temperature",
+    y="Mean Ctmax with 95%CI",
+    color="Oxygen",
+    
+  )+
+theme_classic()
+```
+I see why some people use this, but not ideal with the time fixed effect
+
+Now I am going to do the Lethal/RVM visualization
+
+
+```{r}
+plot_data <- read_csv("lethal.2.csv") %>%
+  filter(!is.na(Date))
+```
+
+Cleaning from last year (Used AI)
+```{r}
+plot_data <- plot_data %>%
+  mutate(
+
+    Treatment = dplyr::recode(
+      Treatment,
+      "A" = "Combined",
+      "B" = "Low Oxygen",
+      "C" = "Control",
+      "D" = "High Temperature"
+    ),
+
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control",
+        "High Temperature",
+        "Low Oxygen",
+        "Combined"
+      )
+    ),
+
+    Date = as.Date(Date, format = "%m/%d/%Y")
+
+  ) %>%
+
+  group_by(Treatment) %>%
+
+  arrange(Date, .by_group = TRUE) %>%
+
+  mutate(
+
+    sampling_date = match(Date, unique(Date)),
+
+    Time = case_when(
+      sampling_date == 1 ~ "Day 1",
+      sampling_date == 2 ~ "Day 5",
+      sampling_date == 3 ~ "Week 3"
+    )
+
+  ) %>%
+
+  ungroup() %>%
+
+  mutate(
+
+    Xaxis = if_else(
+      Treatment == "Control",
+      format(Date, "%b %d"),
+      Time
+    )
+
+  ) %>%
+
+  select(-sampling_date)
+
+experimental_start_date <- min(
+  plot_data$Date[plot_data$Treatment != "Control"],
+  na.rm = TRUE
+)
+plot_data <- plot_data %>%
+  mutate(
+    ExposureDays = as.numeric(Date - experimental_start_date) + 1
+  )
+
+plot_data$Xaxis <- factor(
+
+  plot_data$Xaxis,
+
+  levels = c(
+
+    "Jun 06",
+    "Jun 08",
+    "Jun 10",
+    "Jun 12",
+    "Jun 14",
+    "Jun 16",
+    "Jun 26",
+    "Jun 28",
+    "Jun 30",
+    "Jul 02",
+    "Day 1",
+    "Day 5",
+    "Week 3"
+
+  )
+
+)
+
+
+```
+
+New visualizations
+This one is looking at the distribution of relative ventricular mass within each treatment across all the different dates sampled. 
+```{r}
+ggplot(plot_data, aes(x = Date, y = `RVM (%)`,group = Date)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, alpha = 0.2) +
+  geom_jitter(width = 0.12, alpha = 0.6) +
+  facet_wrap(~Treatment) +
+  labs(x = "Time", y = "RVM (%)") +
+  theme_classic()
+```
+Another thing I am interested in is the difference between the control and the treatments at each time point. 
+```{r}
+ggplot(plot_data, aes(x = Date, y = `RVM (%)`,
+                color = Treatment)) +
+  geom_point() +
+  geom_line(aes(group = Treatment)) +
+  labs(
+    x = "Date",
+    y = "RVM (%)",
+    color = "Treatment"
+  ) +
+  theme_classic()
+```
+This plot used raw data for treatments and controls, but really I want to calculate the difference from the control. below I am comparing the difference between mean control and treatment RVM for each sampling date with 95% CI in the bars. I used AI to help make this plot
+```{r}
+rvm_diff <- plot_data %>%
+  group_by(Date, Treatment) %>%
+  summarise(
+    RVM = mean(`RVM (%)`, na.rm = TRUE),
+    SE = sd(`RVM (%)`, na.rm = TRUE) / sqrt(sum(!is.na(`RVM (%)`))),
+    .groups = "drop"
+  ) %>%
+  group_by(Date) %>%
+  mutate(
+    Control = RVM[Treatment == "Control"][1],
+    Control_SE = SE[Treatment == "Control"][1],
+    Difference = RVM - Control,
+    SE_diff = sqrt(SE^2 + Control_SE^2),
+    Lower = Difference - 1.96 * SE_diff,
+    Upper = Difference + 1.96 * SE_diff
+  ) %>%
+  filter(Treatment != "Control")
+
+ggplot(rvm_diff, aes(x = Date, y = Difference, color = Treatment)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 1) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "Date",
+    y = "Difference from Control RVM (%)"
+  ) +
+  theme_classic()
+```
+Even though there is high overlap, I think this shows the departure from control trend well
+I think for now, the visualization with the true date is helpful but I need to be sure that the model is using duration not date because of the treatment stagger.
+
+
+
+*Add additional code chunks as needed so each graph shows up after the code used to generate it.*
+
+## Proposed analytical approach
+
+**Considering the study design and data, and your research questions, objectives, and/or testable hypotheses, describe your proposed analytical approach. Include your response and predictor variables, type of analysis (linear regression, generalized linear regression, gam, etc.), model selection criteria, etc. Provide sufficient detail to evaluate your proposed approach in the context of your data and questions of interest. If you have questions or uncertain about anything, highlight that here as well. \[2.5 pts\]**
+
+For CTmax (repeated measures) mixed effect linear model for 2x2x2 factorial: I want to test for interactions to decide which to include for each response variable
+
+I am unsure about the inclusion of a covariate for size but have included one below. I am leaning towards no since it is sort of a response and a predictor?
+
+CTmax=Temperature x Oxygen x Duration + Size + (1|Fish ID)
+
+
+For RVM (lethal measures) 2x2x3
+
+RVM=Temperature x Oxygen x Time 
+
+Interested in a statistical approach where I compare the departure from control by modeling the linear regression for control RVM over time, and calculating if the acute and prolonged exposures for each treatment are statistically different from the control model based on the control model for the actual date for each sampling. 
+
+
+## AI statement
+
+**If you used AI for this assignment, please describe your use, including:**
+My initial data cleaning that I included here was made using AI, since I understand what its doing, I felt comfortable re using it here. 
+
+I also used it to help make my last plot since the one immediately before wasn't what I was trying to accomplish. I specifically asked it to generate a simple framework for the code to create a similar plot, and then adjusted it for my own use
+**1.  What tool or service did you use?**
+I used Chat gpt 
+**2.  What was the specific purpose or use?**
+I wanted to figure out how to make the plot I had in my head but I wasn't sure how to describe what I was looking for in clear enough terms to get help from other resources
+**3.  How did this use enhance your understanding of the topic/code?**
+While I understand the code provided for me, and I have a much better understanding of what specifically I am looking for with my visualizations, I could not reporoduce what I have for my last plot from memory. I think it helped me better understand the concept to a point where in the future maybe I could have more success with the other resources I typically use.
+
+
+
