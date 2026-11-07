@@ -89,13 +89,13 @@ ctmax_data <- read_csv("ctmax.croaker.csv",
 ctmax_data <- ctmax_data %>%
   rename(ctmax_temp = `ctmax temp`) %>%
   mutate(
-    Treatment = dplyr::recode(Treatment,
+    Treatment = dplyr::recode(Treatment, # you don't need to call dplyr here, it loads with tidyverse
       "A" = "Combined",
       "B" = "Low Oxygen",
       "C" = "Control",
       "D" = "High Temperature"
     ),
-    Treatment = factor(Treatment),
+    Treatment = factor(Treatment), # you can add levels to your factor argument
     tag = factor(toupper(tag)),
     Tank = factor(Tank),
     `Date tested` = as.Date(`Date tested`,
@@ -130,6 +130,8 @@ ctmax_data <- ctmax_data %>%
   filter(!is.na(Time)) %>%
   mutate(Time = factor(Time, levels = c("Acute", "Prolonged")))
 ```
+
+[You can chain all of these preprocessing steps into one for a more streamlined data cleaning script.]{style="color: aquamarine;"}
 
 Now new simple plots:
 
@@ -299,6 +301,9 @@ ggplot(plot_data, aes(x = Date, y = `RVM (%)`,
   ) +
   theme_classic()
 ```
+
+[I wouldn't recommend drawing the lines between the treatments, as the lines are both within a given date and across dates, which makes it difficult to follow.]{style="color: aquamarine;"}
+
 This plot used raw data for treatments and controls, but really I want to calculate the difference from the control. below I am comparing the difference between mean control and treatment RVM for each sampling date with 95% CI in the bars. I used AI to help make this plot
 ```{r}
 rvm_diff <- plot_data %>%
@@ -347,6 +352,7 @@ I am unsure about the inclusion of a covariate for size but have included one be
 
 CTmax=Temperature x Oxygen x Duration + Size + (1|Fish ID)
 
+[How is size a response and a predictor? Also, based on my read of your methods (could have missed something) but it seems like you might also want to consider testing for tank and trial date effects, just in case.]{style="color: aquamarine;"}
 
 For RVM (lethal measures) 2x2x3
 
@@ -354,6 +360,11 @@ RVM=Temperature x Oxygen x Time
 
 Interested in a statistical approach where I compare the departure from control by modeling the linear regression for control RVM over time, and calculating if the acute and prolonged exposures for each treatment are statistically different from the control model based on the control model for the actual date for each sampling. 
 
+[Ok, this one is a bit more complicated, but super interesting. It seems like you have three different measures of time: a true date, exposure days (date tested - start date), and treatment duration (1 day, 5 days, 21 days). 
+
+In my opinion, trying to analyze differences can get complicated really quickly, unless you have an explicitly paired design (such that the only difference between the two animals is the treatment). In your case, I think you have a set of control animals that are sampled every time you sample the experimental animals, but there isn't an explicit pairing. So you'd end up needing to account for not just the mean but also the variance associated with your controls, and I'm not sure if/how that's actually possible in a traditional modeling framework. One possible option would be a bootstrap where you randomly chose a control and experimental animal with which to calculate the differences. That could be a fun thing to try, but more than you need to do for this project. 
+
+Instead, I'd probably start with a basic glm for control data only, where % RVM ~ exposure duration or sampling date. This will address whether or not there have been any changes in the controls over the course of the entire experiment. Assuming that the controls don't show any clear patterning over time, then I think you can analyze the data using the control as your baseline, and differences can be attributed to the treatment*exposure duration, without having to worry about the staggered experimental start dates.]{style="color: aquamarine;"}
 
 ## AI statement
 
