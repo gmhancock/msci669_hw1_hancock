@@ -1,0 +1,350 @@
+---
+title: "ARA 669 - Assignment 3"
+author: "Grace Hancock"
+date: "10/30/2026"
+output: html_document
+---
+
+## Overview
+
+The goal of this assignment is to apply the tools and approaches we've learned during this course to critique, and then expand on, a statistical analysis. 
+
+Please submit this assignment via GitHub by 2 November.   
+
+## Read & reflect
+
+**Read the article "Do native land crabs hinder forest regeneration on Socorro Island?" (Luna-Zuniga et al. 2025). Describe: \[2 pt\]**
+
+1. The primary question(s) the authors are trying to answer.
+Why the forests on the island havent had effective regeneration over the past 30 years and if the lab crab predation on seeds could be the cause.
+
+To do this, they characterized the current forest species distribution, measured recruitment, see if land crabs are reducing recruitment due to predation, and look into other factors that could contribute to the decline in regeneration/recruitment.
+
+2. The experimental and sampling design. 
+
+The researchers did vegetation surveys in three types of habitat (TDF, TEF, and MCF) and ended up choosing 18 vegetation plots (50x10m) where they identified and counted all of the 5 predetermined tree species, categorizing them by life stage (seedling, sapling, adult). if trees were saplings or adult, their diameter at breast height was measured. in each plot, a 50x1m section was taken from the middle to count and identify the seedlings, then they took this density and multiplied it by 10 to standardized the sample area to 500m2.
+Historic data was standardized in a similar way for comparison.
+
+And experiment was run where crab vs no crab environments were tested for each species of tree. 17 sites, (3-6 per species of interest) each site had 10 paired exclosures each containing 10 seeds. These areas were monitored to count emerging seedlings and evaluate their survival five months after the first seed placement, four months after the second seed placement and three, seven and eight months after the last seed placement to get germination and survival percentages
+
+3. The statistical approach used. 
+
+Survey:
+GLMM with negative binomial with glmmTMB and car
+
+number of individuals per plot = lifestage + species + forest type + (species*forest type) + (species*lifestage) + (1|plot ID)
+
+emmeans determined effect size of lifestage
+
+DBH comparison across species= probability density histogram for each species weibull cirve superimposed on each histogram for parameterization
+
+Experiment:
+GLMM with binomial with glmmTMB and car
+
+proportion of remaining seeds after 10days/10= treatment*species + (1|treatment ID)
+
+global germination percentage and survival rates were calculated
+
+
+Packages:
+readxl package (Wickham and Bryan, 2023)
+ggplot2 (Wickham, 2016)
+dplyr package (Wickham et al., 2023) 
+fitdistrplus
+
+**Imagine you are reviewing this manuscript prior to its publication. Provide a constructive critique of the statistical analyses as they relate to the experimental and sampling design. What did they do well? What would be improved? \[3 pt\]**
+
+It seems like nesting in the experimental design might not be completely accounted for. Theoretically, the seeds are nested in the two treatments (no crab vs crab), each of these paired treatments are tested 10 times per site and there are 17 sites. The researchers have a treatment ID as a random effect (control vs crab) in order to account for differences inherent to the location of the paired locations of the 10 experiments within a site. This doesn't take into account the fact the the treatment ID is nested within site.
+
+proportion of remaining seeds after 10days/10= treatment*species + (1|site/treatment ID)
+
+## Re-analysis
+
+The data associated with this paper are available here: https://figshare.com/articles/dataset/Luna-Zuniga_etal_Regeneration_Socorro-Island_xlsx/29144249/1?file=54804050. Note that the file has several header lines; remove these in Excel prior to importing the data into R or use [readxl](https://readxl.tidyverse.org/articles/multiple-header-rows.html).
+
+Based on your critique of the statistical approach taken by Luna-Zuniga et al. (2025), re-analyze the data to evaluate the effect of *Johngarthia oceanica* on the structure and composition of these island forests, specifically focusing on the seed predation experiment.
+
+**Use the code chunk below to load packages and the data. \[0.5 pt\]**
+
+```{r setup}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+library(DHARMa)
+library(tidyverse)
+library(readr)
+library(car)
+library(glmmTMB)
+library(performance)
+library(ggeffects)
+library(emmeans)
+
+dat<-read_csv("Luna-Zuniga_etal_Socorro_Island.csv")
+summary(dat)
+
+```
+
+## Data exploration
+
+**Explore the data visually using ggplot2. \[0.5 pt\]**
+
+```{r plotting}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+
+dat <- dat %>%
+  mutate(Prop_remaining = Remaining / Total_seeds)
+
+dat <- dat %>%
+  mutate(Removed = Total_seeds - Remaining)
+
+dat %>% #looking for the unpaired treatment id
+  group_by(Site, ID_treatment) %>%
+  filter(n() == 1) %>%
+  select(Site, ID_treatment, Species, Treatment,
+         Remaining, Removed)
+
+
+ggplot(dat, aes(x = Treatment, y = Prop_remaining, fill = Species)) + 
+  geom_boxplot(width = 0.5, color = "black", alpha = 0.4,
+               position = position_dodge(0.8)) +
+  geom_jitter(aes(color = Species), 
+              position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8),
+              alpha = 0.7) +
+  coord_cartesian(ylim = c(0, 1)) +
+  theme_classic()
+
+```
+```{r}
+ggplot(dat, aes(x = Species,
+                 y = Prop_remaining,
+                 fill = Treatment)) +
+  geom_boxplot(position = position_dodge(0.8)) +
+  geom_jitter(aes(color = Treatment),
+              position = position_jitterdodge(jitter.width = 0.2),
+              alpha = 0.5) +
+  theme_classic() 
+```
+
+
+
+## Model development
+
+**Based on the experimental and sampling design, which variables should be considered as fixed effects? Which could be considered as random effects? What distributions should be considered? \[1 pt\]**
+
+Fixed: treatment, species, their interaction
+
+Random: site, treatment id nested in site
+
+distributions: binomial with the logit link funtion (using our count data of success/failure for each seed)
+switched to beta/binomial
+
+
+
+## Analysis
+
+**Develop a set of generalized linear mixed-effects models that reflect the structures described above. Include a model that includes the same response variables as Luna-Zuniga et al. (2025). \[1 pt\]**
+
+```{r models}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+m0 <- glmmTMB( #my proposed model with nesting
+  cbind(Remaining, Removed) ~
+    Treatment * Species +
+    (1 | Site/ID_treatment),
+  family = binomial,
+  data = dat
+)
+
+m1 <- glmmTMB( #what the paper suggested
+  cbind(Remaining, Removed) ~ Treatment * Species +
+    (1 | ID_treatment),
+  family = binomial,
+  data = dat
+)
+
+m2 <- glm( #no random effects
+  cbind(Remaining, Removed) ~ Treatment * Species,
+  family = binomial,
+  data = dat
+)
+
+m3 <- glmmTMB( #additive
+  cbind(Remaining, Removed) ~ Treatment + Species +
+    (1 | Site/ID_treatment),
+  family = binomial,
+  data = dat
+)
+
+#beta binom
+
+m4 <- glmmTMB( #additive beta binom
+  cbind(Remaining, Removed) ~ Treatment + Species +
+    (1 | Site/ID_treatment),
+  family = betabinomial(link = "logit"),
+  data = dat
+)
+
+m5 <- glmmTMB( #interaction with beta binom
+  cbind(Remaining, Removed) ~ Treatment * Species +
+    (1 | Site/ID_treatment),
+  family = betabinomial(link = "logit"),
+  data = dat
+)
+
+m6 <- glmmTMB(
+  cbind(Remaining, Removed) ~ Treatment + Species +
+    (1 | ID_treatment),
+  family = betabinomial,
+  data = dat
+)
+
+
+AIC(m0,m1, m2, m3, m4, m5, m6)
+```
+
+**Evaluate the models using an approach covered as part of this class. \[0.5 pt\]**
+
+```{r modelselection}
+#| message: false
+#| error: false
+summary(m0)
+check_overdispersion(m0)
+check_model(m0)
+check_collinearity(m0)
+
+summary(m1)
+check_overdispersion(m1)
+check_model(m1)
+check_collinearity(m1)
+
+summary(m2)
+check_overdispersion(m2)
+check_model(m2)
+check_collinearity(m2)
+
+
+summary(m3)
+check_overdispersion(m3)
+check_model(m3)
+check_collinearity(m3)
+
+#beta binom
+
+summary(m4)
+check_overdispersion(m4)
+check_model(m4)
+check_collinearity(m4)
+
+summary(m5)
+check_overdispersion(m5)
+check_model(m5)
+check_collinearity(m5)
+
+summary(m6)
+check_overdispersion(m6)
+check_model(m6)
+check_collinearity(m6)
+
+```
+
+
+
+**Check your model diagnostics (i.e., are the model assumptions met) using an approach covered as part of this class. \[1 pt\]**
+
+```{r diagnostics}
+
+
+# Paste your code in here!
+
+summary(m5)
+check_overdispersion(m5)
+check_model(m5)
+check_collinearity(m5)
+
+summary(m6)
+check_overdispersion(m6)
+check_model(m6)
+check_collinearity(m6)
+
+
+
+
+pred_m5<-
+  predict_response(
+    m5,
+    terms=c("Treatment", "Species"))
+
+plot(pred_m5)
+
+pred_m6 <- predict_response(
+  m6,
+  terms = c("Treatment", "Species")
+)
+
+
+
+plot(pred_m6)
+```
+
+**Which model would you choose as your final model? Why is that model preferred over the others? \[1 pt\]**
+I would choose m6, because even though the AIC for m5 is lower, m6 is better for interpreting the coefficients (estimates are more stable, less error) but it ignores the species effect that is clear in m5. m5 is dealing with a seperation issue (not perfectly paired)
+
+**Generate model predictions (using the ggeffects package) and plot the predictions over observed data. Describe your results. \[1.5 pt\]**
+
+```{r predictions}
+#| message: false
+#| error: false
+
+# Paste your code in here!
+dat <- dat %>%
+  mutate(
+    Observed = Remaining / (Remaining + Removed)
+  )
+
+
+ggplot() +
+  geom_jitter(data = dat, aes(Treatment, Observed), alpha = 0.4) +
+  geom_pointrange(data = pred_m6,
+                  aes(x, predicted, ymin = conf.low, ymax = conf.high),
+                  color = "red",
+                  )+
+  facet_wrap(~group) +
+  theme_classic()
+
+```
+
+
+## Conclusions
+
+**How do your results compare to those presented by Luna-Zuniga et al. (2025)? \[1 pt\]**
+```{r}
+emmeans(m6, pairwise ~ Treatment | Species, type = "response")
+```
+Over all they agree about the general conclusion that crab exclusion improves seed survival and even without the species interaction, the species follow the same trends. my model does lessen the extreme results for sideroxylon due to the lack of the interaction. 
+
+**Provide summary statements about the quality of your analysis, including any potential limitations or caveats. \[1 pt\]**
+my chosen model (m6) uses a different distribution (beta-binomial) that helps with the over dispersion. My model removes the interaction, but keeps the same random effect. I can't tell if their response variable is looking at the same thing, because they describe it as a proportion. I think because they weight it by 10, it should be equivilent to the original counts which is what I thought was the best fit. 
+I think the analysis I did has improvements in some regards but is falling short in some ways. One limitation is that I chose a model that doesn't include the interaction even though, biologically, I believe it is relevant. I think more work could be done to find a way to avoid overdispersion, and high standard errors (caused by the sepreation issues), but I couldn't figure it out myself. 
+
+## AI statement
+
+*If you used AI for this assignment, please describe your use, including:*
+
+*1.  What tool or service did you use?*
+Chatgpt
+
+*2.  What was the specific purpose or use?*
+trouble shooting my ggplots for data exploration. It helped make them more legible than I was able to alone.
+*3.  How did this use enhance your understanding of the topic/code?*
+Helped reinforce ggplot formats, and build references for future work
+
+
+
+
+
